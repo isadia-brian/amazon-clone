@@ -54,19 +54,19 @@ const RegisterScreen = () => {
       await axios
         .post("http://192.168.0.15:8000/register", user)
         .then((response) => {
-          console.log(response);
-
           Alert.alert(
             "Registration successful",
             "You have registered successfully "
           );
+
           setEmail("");
           setUsername("");
           setPassword("");
           setConfirmPassword("");
+
+          navigation.navigate("Login");
         })
         .catch((error) => {
-          console.error("Error signing up");
           Alert.alert("Error Signing up");
         });
     }

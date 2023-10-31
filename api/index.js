@@ -5,6 +5,7 @@ const nodeMailer = require("nodemailer");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
 const { hash } = require("bcrypt");
+const bcrypt = require("bcrypt");
 
 const User = require("./models/user");
 const Order = require("./models/order");
@@ -133,8 +134,41 @@ app.get("/verify/:token", async (req, res) => {
     user.verificationToken = undefined;
 
     await user.save();
-    return res.status(200).json({ message: "Email verified successfully" });
+    res.status(200).json({ message: "Email verified successfully" });
   } catch (error) {
-    res.json(500).json({ message: "Email Verification failed" });
+    res.status(500).json({ message: "Email Verification failed" });
+  }
+});
+
+const generateSecretKey = () => {
+  const secretKey = crypto.randomBytes(32).toString("hex");
+  return secretKey;
+};
+
+const secretKey = generateSecretKey();
+
+app.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(401).json({ message: "Invalid email or password" });
+    }
+
+    const passwordMatch = await bcrypt.compare(password, user.password);
+
+    if (!passwordMatch) {
+      return res.status(401).json({ message: "Invalid Email or Password" });
+    }
+
+    //Generate a token
+    const payload = {
+      userId: user._id,
+    };
+    const token = jwt.sign(payload, secretKey);
+
+    res.status(200).json({ token });
+  } catch (error) {
+    res.status(500).json({ message: "Login failed" });
   }
 });

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   SafeAreaView,
   StyleSheet,
@@ -8,11 +8,16 @@ import {
   KeyboardAvoidingView,
   TextInput,
   Pressable,
+  Alert,
 } from "react-native";
+
+import axios from "axios";
 
 import { MaterialIcons } from "@expo/vector-icons";
 import { AntDesign } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import {
   useFonts,
@@ -30,6 +35,44 @@ const LoginScreen = () => {
     Poppins_400Regular,
   });
   const navigation = useNavigation();
+
+  useEffect(() => {
+    const checkLoginStatus = async () => {
+      try {
+        const token = await AsyncStorage.getItem("authToken");
+
+        if (token) {
+          navigation.replace("Main");
+        }
+      } catch (error) {
+        console.log("error message", error);
+      }
+    };
+    checkLoginStatus();
+  }, []);
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Please fill in all fields");
+    }
+
+    const user = {
+      email,
+      password,
+    };
+
+    await axios
+      .post("http://192.168.0.15:8000/login", user)
+      .then((response) => {
+        const token = response.data.token;
+        AsyncStorage.setItem("authToken", token);
+
+        navigation.replace("Main");
+      })
+      .catch((error) => {
+        Alert.alert("Error Logging in", "Invalid Email or Password");
+      });
+  };
 
   if (!fontsLoaded && !fontError) {
     return null;
@@ -140,6 +183,7 @@ const LoginScreen = () => {
             marginRight: "auto",
             padding: 15,
           }}
+          onPress={handleLogin}
         >
           <Text
             style={{
