@@ -1,9 +1,10 @@
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-// const nodeMailer = require("nodemailer");
+const nodeMailer = require("nodemailer");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
+const { hash } = require("bcrypt");
 
 const User = require("./models/user");
 const Order = require("./models/order");
@@ -16,15 +17,17 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
 const jwt = require("jsonwebtoken");
+const {
+  MONGODB_URI,
+  SENDER_EMAIL,
+  SENDER_APP_PASSWORD,
+} = require("./utils/envParser");
 
 mongoose
-  .connect(
-    "mongodb+srv://isadiabrianlusigi:isadia2024@cluster0.fj6f7yt.mongodb.net/",
-    {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    }
-  )
+  .connect(MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
   .then(() => {
     console.log("connected successfully");
   })
@@ -36,41 +39,41 @@ app.listen(port, () => {
 
 //function to send verification email
 
-// const sendVerificationEmail = async (email, verificationToken) => {
-//   //create nodemailer transport
+const sendVerificationEmail = async (email, verificationToken) => {
+  //create nodemailer transport
 
-//   const transporter = nodeMailer.createTransport({
-//     //configure email service
-//     service: "gmail",
-//     auth: {
-//       user: "isadiabrianlusigi@gmail.com",
-//       pass: "awaa mela avtw jlko",
-//     },
-//   });
+  const transporter = nodeMailer.createTransport({
+    //configure email service
+    service: "gmail",
+    auth: {
+      user: SENDER_EMAIL,
+      pass: SENDER_APP_PASSWORD,
+    },
+  });
 
-//   //compose the email message
+  //   //compose the email message
 
-//   const mailOptions = {
-//     from: "amazon.com",
-//     to: email,
-//     subject: "Email Verification",
-//     text: `Someone recently added your email to amazon.com, if this was you, please click the following link to verify your email : http://localhost:8000/verify/${verificationToken} `,
-//   };
+  const mailOptions = {
+    from: SENDER_EMAIL,
+    to: email,
+    subject: "Email Verification",
+    text: `Someone recently added your email to amazon.com, if this was you, please click the following link to verify your email : http://localhost:8000/verify/${verificationToken} `,
+  };
 
-//   //send email
-//   try {
-//     await transporter.sendMail(mailOptions);
-//   } catch (error) {
-//     console.log("Error sending verification email", error);
-//   }
-// };
+  //send email
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log("Email sent");
+  } catch (error) {
+    console.log("Error sending verification email", error);
+  }
+};
 
 //endpoints
 
 app.post("/register", async (req, res) => {
   try {
     const { username, email, password } = req.body;
-    console.log(username);
 
     //check if fields are all present and if email is already registered
 
@@ -89,7 +92,10 @@ app.post("/register", async (req, res) => {
 
     //create new user
 
-    const newUser = new User({ username, email, password });
+    //encrypt password
+    const hashedPassword = await hash(password, 10);
+
+    const newUser = new User({ username, email, password: hashedPassword });
 
     // generate & store verification token
 
@@ -98,11 +104,11 @@ app.post("/register", async (req, res) => {
     //save user to database
 
     await newUser.save();
-    return res.status(200).json({ message: "Successfully signed up" });
 
     //send verification email to new user
 
-    // sendVerificationEmail(newUser.email, newUser.verificationToken);
+    sendVerificationEmail(newUser.email, newUser.verificationToken);
+    return res.status(200).json({ message: "Successfully signed up" });
   } catch (error) {
     console.log("Error registering", error);
     res.status(500).json({ message: "Registration failed" });
@@ -110,25 +116,25 @@ app.post("/register", async (req, res) => {
 });
 
 //endpoint to send verification
-// app.get("/verify/:token", async (req, res) => {
-//   try {
-//     const token = req.params.token;
+app.get("/verify/:token", async (req, res) => {
+  try {
+    const token = req.params.token;
 
-//     //find the user with verification token
+    //find the user with verification token
 
-//     const user = await User.findOne({ verificationToken: token });
+    const user = await User.findOne({ verificationToken: token });
 
-//     if (!user) {
-//       return res.status(400).json({ message: "Invalid verification token" });
-//     }
-//     //Mark the user verified
+    if (!user) {
+      return res.status(400).json({ message: "Invalid verification token" });
+    }
+    //Mark the user verified
 
-//     user.verified = true;
-//     user.verificationToken = undefined;
+    user.verified = true;
+    user.verificationToken = undefined;
 
-//     await user.save();
-//     return res.status(200).json({ message: "Email verified successfully" });
-//   } catch (error) {
-//     res.json(500).json({ message: "Email Verification failed" });
-//   }
-// });
+    await user.save();
+    return res.status(200).json({ message: "Email verified successfully" });
+  } catch (error) {
+    res.json(500).json({ message: "Email Verification failed" });
+  }
+});
